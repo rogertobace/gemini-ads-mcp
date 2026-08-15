@@ -2,18 +2,18 @@ import type { GenerateAdInput } from "@/src/ad-schema";
 import { buildAdPrompt } from "@/src/ad-prompt";
 import { getGeminiConfig } from "@/src/config";
 
-type GeminiPart = {
+type InteractionContent = {
+  type?: string;
   text?: string;
-  inlineData?: {
-    data?: string;
-    mimeType?: string;
-  };
+  data?: string;
+  mime_type?: string;
 };
 
 type GeminiResponse = {
-  candidates?: Array<{
-    content?: { parts?: GeminiPart[] };
-    finishReason?: string;
+  status?: string;
+  steps?: Array<{
+    type?: string;
+    content?: InteractionContent[];
   }>;
   error?: { code?: number; message?: string; status?: string };
 };
@@ -34,19 +34,24 @@ export async function generateAdImage(
 ): Promise<GeneratedAd> {
   const config = getGeminiConfig();
   const prompt = buildAdPrompt(input);
-  const endpoint = `${config.baseUrl}/models/${encodeURIComponent(config.model)}:generateContent`;
+  const endpoint = `${config.baseUrl}/interactions`;
 
   const response = await fetchImplementation(endpoint, {
     method: "POST",
     headers: {
       "content-type": "application/json",
       "x-goog-api-key": config.apiKey,
+      "api-revision": "2026-05-20",
     },
     body: JSON.stringify({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      generationConfig: {
-        responseModalities: ["TEXT", "IMAGE"],
-        imageConfig: { aspectRatio: input.format },
+      model: config.model,
+      input: prompt,
+      store: false,
+      response_format: {
+        type: "image",
+        mime_type: "image/jpeg",
+        aspect_ratio: input.format,
+        image_size: config.imageSize,
       },
     }),
     signal: AbortSignal.timeout(110_000),
@@ -58,20 +63,22 @@ export async function generateAdImage(
     throw new Error(`Gemini image generation failed: ${detail}`);
   }
 
-  const parts = payload.candidates?.flatMap(
-    (candidate) => candidate.content?.parts || [],
+  const outputContent = payload.steps
+    ?.filter((step) => step.type === "model_output")
+    .flatMap((step) => step.content || []);
+
+  const imagePart = outputContent?.find(
+    (part) => part.type === "image" && part.data,
   );
-  const imagePart = parts?.find((part) => part.inlineData?.data)?.inlineData;
-  const notes = parts
-    ?.filter((part) => part.text)
+  const notes = outputContent
+    ?.filter((part) => part.type === "text" && part.text)
     .map((part) => part.text)
     .join("\n")
     .trim();
 
   if (!imagePart?.data) {
-    const finishReason = payload.candidates?.[0]?.finishReason || "unknown";
     throw new Error(
-      `Gemini returned no image. Finish reason: ${finishReason}.${notes ? ` Detail: ${notes}` : ""}`,
+      `Gemini returned no image. Interaction status: ${payload.status || "unknown"}.${notes ? ` Detail: ${notes}` : ""}`,
     );
   }
 
@@ -83,7 +90,7 @@ export async function generateAdImage(
 
   return {
     data: imagePart.data,
-    mimeType: imagePart.mimeType || "image/png",
+    mimeType: imagePart.mime_type || "image/jpeg",
     model: config.model,
     prompt,
     notes: notes || undefined,
