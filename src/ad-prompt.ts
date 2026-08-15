@@ -2,11 +2,13 @@ import type { GenerateAdInput } from "@/src/ad-schema";
 
 export function buildAdPrompt(input: GenerateAdInput) {
   const textRequirements = [
-    input.headline ? `Headline exata: “${input.headline}”.` : "Crie uma headline curta e persuasiva.",
+    input.headline
+      ? `Headline exata: “${input.headline}”.`
+      : "Crie uma headline curta e persuasiva.",
     input.supporting_text
       ? `Texto de apoio exato: “${input.supporting_text}”.`
-      : "Use no máximo uma linha curta de apoio se isso melhorar a conversão.",
-    `CTA: “${input.cta}”.`,
+      : "Não inclua texto de apoio adicional.",
+    `CTA exato: “${input.cta}”.`,
   ].join("\n");
 
   return `Crie uma única peça publicitária estática profissional, pronta para mídia paga.
@@ -26,6 +28,8 @@ CONTEXTO DE MARKETING
 
 COPY NA ARTE
 ${textRequirements}
+- Renderize somente os textos explicitamente autorizados acima.
+- Não acrescente rótulos como “antes”, “depois”, nome da empresa, slogans, legendas ou frases decorativas.
 
 DIREÇÃO DE ARTE
 ${input.visual_direction || "Visual premium, claro e orientado à conversão, com hierarquia forte e foco em um único conceito."}
