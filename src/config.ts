@@ -1,5 +1,23 @@
 const trimTrailingSlash = (value: string) => value.replace(/\/+$/, "");
 
+const DEFAULT_GEMINI_IMAGE_MODEL = "gemini-3-pro-image";
+const DEFAULT_GEMINI_IMAGE_SIZE = "1K";
+const GEMINI_IMAGE_SIZES = ["1K", "2K", "4K"] as const;
+
+type GeminiImageSize = (typeof GEMINI_IMAGE_SIZES)[number];
+
+function getGeminiImageSize(): GeminiImageSize {
+  const value = (
+    process.env.GEMINI_IMAGE_SIZE?.trim() || DEFAULT_GEMINI_IMAGE_SIZE
+  ).toUpperCase();
+
+  if (!GEMINI_IMAGE_SIZES.includes(value as GeminiImageSize)) {
+    throw new Error("GEMINI_IMAGE_SIZE must be 1K, 2K or 4K.");
+  }
+
+  return value as GeminiImageSize;
+}
+
 export function getGeminiConfig() {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   if (!apiKey) {
@@ -8,7 +26,9 @@ export function getGeminiConfig() {
 
   return {
     apiKey,
-    model: process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-2.5-flash-image",
+    model:
+      process.env.GEMINI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_IMAGE_MODEL,
+    imageSize: getGeminiImageSize(),
     baseUrl: trimTrailingSlash(
       process.env.GEMINI_API_BASE_URL?.trim() ||
         "https://generativelanguage.googleapis.com/v1beta",
@@ -71,6 +91,7 @@ export function getConfigurationStatus() {
         process.env.MCP_AUTH_SECRET?.trim(),
     ),
     model:
-      process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-2.5-flash-image",
+      process.env.GEMINI_IMAGE_MODEL?.trim() || DEFAULT_GEMINI_IMAGE_MODEL,
+    imageSize: getGeminiImageSize(),
   };
 }
